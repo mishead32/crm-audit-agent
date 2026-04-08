@@ -56,17 +56,6 @@ COMPANIES = {
         "col_person":  9,    # J
         "col_source":  6,    # G
     },
-    "spakora": {
-        "name":        "Spa Kora",
-        "description": "Spa that sells treatments and memberships. Leads are people inquiring about spa services.",
-        "url":         "https://docs.google.com/spreadsheets/d/1OX7Liv6dg96UxxhScOfYxAk4-h8gxmj6Md4tTwiD1_M/edit",
-        "worksheet":   "Inquiry",
-        "col_date":    2,    # C
-        "col_remarks": 25,   # Z
-        "col_status":  10,   # K
-        "col_person":  11,   # L
-        "col_source":  7,    # H
-    },
 }
 
 groq_client    = Groq(api_key=GROQ_API_KEY)
@@ -144,44 +133,14 @@ def load_sheet(company_key, from_date, to_date, status_filter):
     return f[["_date_str", "_remarks", "_person", "_source", "_status"]]
 
 
-def analyze_batch(co, task, batch_df, offset=0):
-    """Analyze a single batch of leads with Groq."""
-    leads_text = ""
-    for i, row in batch_df.iterrows():
-        leads_text += f"LEAD {i+1+offset}:\nCurrent Status: {row['_status']}\nRemarks: {row['_remarks'] or 'No remarks provided'}\n\n"
-
-    prompt = f"""You are a senior sales audit expert for: {co['description']}
-
-{task}
-
-{leads_text}
-
-Respond for EVERY lead in EXACTLY this format — do not skip any:
-
-LEAD {offset+1}:
-POTENTIAL: [0% / 10% / 25% / 35% / 50%]
-VERDICT: [Correctly Irrelevant / Correctly Relevant / MIS-CATEGORIZED]
-REASON: [1 sentence explanation]
-ACTION: [1 sentence recommended next step, or None]
-
-Rules for MIS-CATEGORIZED:
-- Irrelevant leads: genuine interest, asked about fees/facilities/timings, real need = MIS-CATEGORIZED
-- Relevant leads: wrong number, no interest, not target audience = MIS-CATEGORIZED
-- Wrong location/distance alone for irrelevant = Correctly Irrelevant
-- Accidental click, clearly no interest = Correctly Irrelevant"""
-
-    resp = groq_client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0.2,
-    )
-    return resp.choices[0].message.content
-
-
 def analyze_with_groq(company_key, df, status_filter):
     co = COMPANIES[company_key]
     if df.empty:
         return []
+
+    leads_text = ""
+    for i, row in df.reset_index(drop=True).iterrows():
+        leads_text += f"LEAD {i+1}:\nCurrent Status: {row['_status']}\nRemarks: {row['_remarks'] or 'No remarks provided'}\n\n"
 
     if status_filter == "irrelevant":
         task = """The telecaller marked these leads as IRRELEVANT.
@@ -199,19 +158,37 @@ Your job: Check if the telecaller was WRONG — i.e., is the lead actually NOT a
 - If RELEVANT lead has no genuine interest → MIS-CATEGORIZED
 - Otherwise → Correctly Categorized"""
 
-    # Process in batches of 12 to avoid timeouts
-    BATCH_SIZE = 12
-    all_blocks = []
-    df_reset = df.reset_index(drop=True)
-    for start in range(0, len(df_reset), BATCH_SIZE):
-        batch = df_reset.iloc[start:start+BATCH_SIZE]
-        result = analyze_batch(co, task, batch, offset=start)
-        blocks = [b.strip() for b in re.split(r'LEAD \d+:', result) if b.strip()]
-        all_blocks.extend(blocks)
+    prompt = f"""You are a senior sales audit expert for: {co['description']}
+
+{task}
+
+{leads_text}
+
+Respond for EVERY lead in EXACTLY this format — do not skip any:
+
+LEAD 1:
+POTENTIAL: [0% / 10% / 25% / 35% / 50%]
+VERDICT: [Correctly Irrelevant / Correctly Relevant / MIS-CATEGORIZED]
+REASON: [1 sentence explanation]
+ACTION: [1 sentence recommended next step, or None]
+
+Rules for MIS-CATEGORIZED:
+- Irrelevant leads: genuine interest, asked about fees/facilities/timings, real need = MIS-CATEGORIZED
+- Relevant leads: wrong number, no interest, not target audience = MIS-CATEGORIZED
+- Wrong location/distance alone for irrelevant = Correctly Irrelevant
+- Accidental click, clearly no interest = Correctly Irrelevant"""
+
+    resp = groq_client.chat.completions.create(
+        model="llama-3.3-70b-versatile",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.2,
+    )
+    result = resp.choices[0].message.content
+    blocks = [b.strip() for b in re.split(r'LEAD \d+:', result) if b.strip()]
 
     results = []
-    for i, row in df_reset.iterrows():
-        block  = all_blocks[i] if i < len(all_blocks) else ""
+    for i, row in df.reset_index(drop=True).iterrows():
+        block  = blocks[i] if i < len(blocks) else ""
         parsed = {"potential": "—", "verdict": "—", "reason": "—", "action": "None"}
         for line in block.split("\n"):
             l = line.strip()
