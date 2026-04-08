@@ -332,6 +332,15 @@ def build_excel(company_key, results, from_date, to_date):
 def index():
     return render_template("index.html")
 
+@app.route("/debug")
+def debug():
+    creds = os.environ.get("GOOGLE_CREDENTIALS_JSON", "NOT SET")
+    groq  = os.environ.get("GROQ_API_KEY", "NOT SET")
+    return {
+        "GOOGLE_CREDENTIALS_JSON": f"SET ({len(creds)} chars)" if creds != "NOT SET" else "NOT SET",
+        "GROQ_API_KEY": "SET" if groq != "NOT SET" else "NOT SET"
+    }
+
 @app.route("/analyze", methods=["POST"])
 def analyze():
     data        = request.json
