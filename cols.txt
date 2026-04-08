@@ -1,0 +1,88 @@
+bodyzone
+0: Timestamp
+1: Inquiry No.
+2: Inquiry Date & Time
+3: Contact Name
+4: Phone
+5: Email
+6: Lead Source
+7: Update Remarks
+8: Business Expected Date
+9: Sales personnel name
+10: Sales Person Email
+11: Sales Stage
+12: Next Steps
+13: Next Followup Date
+14: Inquiry Status
+15: Technical counselling by
+16: E​xpectations of Member from GYM Membership
+17: Visit done or not ?
+18: Ad Nam (Use # with FB ad)
+19: Date of Visit
+20: Form Edit URL
+21: Trial given status
+22: Trial Given by
+23: Trial Date
+24: Enter the date of Order Won
+25: Is He/She is looking for job?
+26: Is He/She is from  out of city?
+27: If reference, Fill the Name and number
+28: Aletrnative contact number
+29: Past Gym/comparing with
+30: Gender
+31: Profession    
+32: Budget
+33: Distance from Bodyzone
+34: No. of People Interested
+35: Product to be offered    
+36: Potential ℅age:
+37: Is he/she is old member
+38: Appointment booking date and time
+39: Inquiry Posting Timestamp
+40: First Call Timestamp
+41: Avg. Posting Time
+42: First Call Delay Time
+43: Discovery Msg Sent At
+44: Not Answered Msg Sent At
+45: Order Won Msg Sent At
+46: Appointment msg sent At
+47: Sales sheet mapping (Amount)
+48: Sales sheet mapping (Payment)
+49: Sales sheet mapping (Category)
+50: Duplicate Check
+51: Shift
+spakora
+0: टाइमस्टैम्प
+1: Inquiry No.
+2: Inquiry Date & Time
+3: Ad Nam (Use # with FB ad)
+4: Contact Name
+5: Phone
+6: Email
+7: Lead Source
+8: Sales Person Email
+9: Sales Stage
+10: Inquiry Status
+11: Sales personnel name
+12: Service Type
+13: Visit done or not ?
+14: Date of Visit
+15: Client's appointment Fixed: Date & Time
+16: Body Spa List
+17: Beauty Treatment List
+18: Is he/she the ex member of Bodyzone & Spa kora?
+19: Enter the date of Order Won
+20: Form Edit URL
+21: Is He/She is from  out of city?
+22: Expected Close Date
+23: Next Steps
+24: Next Followup Date
+25: Update Remarks
+26: Is He/She is looking for job?
+27: Inquiry Posting Timestamp
+28: First Call Timestamp
+29: Avg. Posting Time
+30: First Call Delay Time
+31: Duplicate Check
+32: ORDER WON LIVE SHEET
+33: ORDER WON LIVE SHEET
