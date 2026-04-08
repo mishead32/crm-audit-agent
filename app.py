@@ -224,20 +224,20 @@ Rules for MIS-CATEGORIZED:
 
 
 def parse_command_with_groq(command):
-    """Use Groq to interpret a natural language command."""
+    """Use Groq to determine if command is an analyze request or a general question."""
     today = datetime.today().strftime("%Y-%m-%d")
-    prompt = f"""Extract the analysis parameters from this user command. Today's date is {today}.
+    prompt = f"""You are a CRM assistant. Analyze this user command. Today's date is {today}.
 
 Command: "{command}"
 
-Return a JSON object with these fields:
-- company: one of "bips", "bodyzone", "spakora" (guess from context; default "bips")
-- from_date: YYYY-MM-DD format
-- to_date: YYYY-MM-DD format
-- status: one of "irrelevant", "relevant", "all" (default "irrelevant")
+First decide: is this an ANALYZE command (user wants to analyze/audit/check leads by status) or a GENERAL QUESTION (user is asking anything else about the data)?
 
-Return ONLY valid JSON, nothing else. Example:
-{{"company": "bips", "from_date": "2026-04-06", "to_date": "2026-04-06", "status": "irrelevant"}}"""
+Return ONLY a JSON object:
+- If ANALYZE: {{"type":"analyze","company":"bips|bodyzone|spakora","from_date":"YYYY-MM-DD","to_date":"YYYY-MM-DD","status":"irrelevant|relevant|all"}}
+- If GENERAL: {{"type":"question","company":"bips|bodyzone|spakora","from_date":"YYYY-MM-DD","to_date":"YYYY-MM-DD","question":"{command}"}}
+
+Default company: bips. Default status: irrelevant. For general questions, set wide date range if no date mentioned (e.g. 2026-04-01 to {today}).
+Return ONLY valid JSON."""
 
     resp = groq_client.chat.completions.create(
         model="llama-3.3-70b-versatile",
@@ -245,11 +245,69 @@ Return ONLY valid JSON, nothing else. Example:
         temperature=0,
     )
     text = resp.choices[0].message.content.strip()
-    # Extract JSON
     match = re.search(r'\{.*?\}', text, re.DOTALL)
     if match:
         return json.loads(match.group())
     return None
+
+
+def answer_general_question(company_key, from_date, to_date, question):
+    """Load full sheet data and answer any question using Groq."""
+    co  = COMPANIES[company_key]
+    ws  = get_gspread().open_by_url(co["url"]).worksheet(co["worksheet"])
+    rows = ws.get("A:BZ")
+    if not rows or len(rows) < 2:
+        return "No data found for this company."
+
+    # Build text summary of data (limit rows to avoid token overflow)
+    header = rows[0]
+    data_rows = rows[1:]
+
+    # Filter by date if possible
+    try:
+        date_col = co["col_date"]
+        is_dayfirst = (company_key == "bips")
+        filtered = []
+        for row in data_rows:
+            if len(row) > date_col and row[date_col]:
+                try:
+                    d = pd.to_datetime(row[date_col], dayfirst=is_dayfirst, errors="coerce")
+                    if pd.notna(d):
+                        if pd.Timestamp(from_date).date() <= d.date() <= pd.Timestamp(to_date).date():
+                            filtered.append(row)
+                except:
+                    pass
+        data_rows = filtered if filtered else data_rows
+    except:
+        pass
+
+    # Cap at 200 rows to avoid token overflow
+    data_rows = data_rows[:200]
+
+    # Format as readable table
+    table_lines = [" | ".join(str(v) for v in header)]
+    for row in data_rows:
+        padded = row + [''] * (len(header) - len(row))
+        table_lines.append(" | ".join(str(v) for v in padded[:len(header)]))
+    table_text = "\n".join(table_lines)
+
+    prompt = f"""You are a CRM data analyst for {co['name']}.
+Here is the sheet data (date range {from_date} to {to_date}):
+
+{table_text}
+
+Answer this question clearly and concisely:
+{question}
+
+Give a direct, helpful answer with numbers/stats where relevant."""
+
+    resp = groq_client.chat.completions.create(
+        model="llama-3.3-70b-versatile",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.3,
+        max_tokens=1000,
+    )
+    return resp.choices[0].message.content.strip()
 
 
 def build_excel(company_key, results, from_date, to_date):
@@ -383,23 +441,28 @@ def analyze():
 
 @app.route("/command", methods=["POST"])
 def command():
-    """Parse a natural language command and run analysis."""
+    """Parse a natural language command — handles both analyze and general questions."""
     text = request.json.get("text", "").strip()
     if not text:
         return jsonify({"error": "Please type a command."}), 400
     try:
         params = parse_command_with_groq(text)
         if not params:
-            return jsonify({"error": "Could not understand the command. Try: 'Analyze BIPS irrelevant leads for 6 April 2026'"}), 400
+            return jsonify({"error": "Could not understand the command."}), 400
 
         company_key = params.get("company", "bips")
         from_date   = params.get("from_date", "")
         to_date     = params.get("to_date", "")
-        status      = params.get("status", "irrelevant")
-
         if company_key not in COMPANIES:
             company_key = "bips"
 
+        # General question — answer directly from sheet data
+        if params.get("type") == "question":
+            answer = answer_general_question(company_key, from_date, to_date, params.get("question", text))
+            return jsonify({"type": "answer", "answer": answer, "company": COMPANIES[company_key]["name"], "from_date": from_date, "to_date": to_date})
+
+        # Analyze command
+        status = params.get("status", "irrelevant")
         df = load_sheet(company_key, from_date, to_date, status)
         if df.empty:
             return jsonify({
@@ -407,7 +470,6 @@ def command():
                 "company": COMPANIES[company_key]["name"],
                 "from_date": from_date, "to_date": to_date, "status": status,
                 "message": f"No '{status}' leads found for the selected period.",
-                "parsed": params,
             })
 
         results = analyze_with_groq(company_key, df, status)
@@ -421,7 +483,6 @@ def command():
             "from_date": from_date,
             "to_date":   to_date,
             "status":    status,
-            "parsed":    params,
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500

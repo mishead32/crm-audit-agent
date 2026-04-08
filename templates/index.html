@@ -346,17 +346,20 @@ async function sendCommand() {
       showOnly('msg-error'); return;
     }
 
-    // Update dropdowns to match parsed command
-    if (data.parsed) {
-      const p = data.parsed;
-      document.getElementById('company').value   = p.company   || 'bips';
-      document.getElementById('from_date').value = p.from_date || '';
-      document.getElementById('to_date').value   = p.to_date   || '';
-      document.getElementById('status').value    = p.status    || 'irrelevant';
+    // General question answer
+    if (data.type === 'answer') {
+      const box = document.getElementById('msg-error');
+      box.style.color = '#7dd3fc';
+      box.innerHTML = `<strong>${data.company} · ${data.from_date} to ${data.to_date}</strong><br><br>${data.answer.replace(/\n/g, '<br>')}`;
+      showOnly('msg-error');
+      return;
+    }
 
+    // Analyze result — update tag
+    if (data.company) {
       const tag = document.getElementById('parsed-tag');
       tag.style.display = 'block';
-      tag.textContent = `Understood: ${data.company} · ${p.from_date} to ${p.to_date} · ${p.status}`;
+      tag.textContent = `Understood: ${data.company} · ${data.from_date} to ${data.to_date} · ${data.status}`;
     }
 
     renderResults(data);
