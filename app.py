@@ -430,5 +430,7 @@ def download():
                      mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
 if __name__ == "__main__":
-    print("CRM Analysis AI Agent running at http://localhost:5000")
-    app.run(debug=True, port=5000)
+    port = int(os.environ.get("PORT", 5000))
+    debug = os.environ.get("RENDER") is None  # debug only on local
+    print(f"CRM Analysis AI Agent running at http://localhost:{port}")
+    app.run(host="0.0.0.0", port=port, debug=debug)
