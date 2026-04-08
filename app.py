@@ -431,5 +431,5 @@ def download():
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
-    print(f"CRM Analysis AI Agent running at http://localhost:{port}")
-    app.run(host="0.0.0.0", port=port, debug=False, use_reloader=False)
+    print(f"CRM Analysis AI Agent running at http://0.0.0.0:{port}")
+    app.run(host="0.0.0.0", port=port)
