@@ -28,8 +28,10 @@ def get_gspread_client():
         creds_dict = json.loads(creds_json)
         creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
         return gspread.authorize(creds)
-    else:
+    elif os.path.exists(CREDENTIALS_PATH):
         return gspread.service_account(filename=CREDENTIALS_PATH)
+    else:
+        raise Exception("GOOGLE_CREDENTIALS_JSON environment variable is not set in Railway. Go to Railway → Variables and add it.")
 
 COMPANIES = {
     "bips": {
