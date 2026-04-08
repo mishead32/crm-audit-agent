@@ -176,8 +176,8 @@ tr.flagged:hover { background: rgba(200,0,0,0.13); }
       <button class="btn btn-dl hidden" id="btn-dl" onclick="downloadReport()">Download Excel</button>
     </div>
 
-    <div class="msg" id="msg-idle">Select a company and date range above, then click <strong>Analyze</strong> — or type a command above.</div>
-    <div class="msg hidden" id="msg-loading"><span class="spinner"></span>Fetching sheet data and analyzing with Groq AI...</div>
+    <div class="msg" id="msg-idle">Select a company and date range above, then click <strong>Analyze</strong>.</div>
+    <div class="msg hidden" id="msg-loading"><span class="spinner"></span>&nbsp; Fetching data and analyzing with AI — please wait...</div>
     <div class="msg hidden" id="msg-empty" style="color:#f0a060;">No leads found for the selected filters.</div>
     <div class="msg hidden" id="msg-error" style="color:#e87070;"></div>
 
@@ -216,12 +216,14 @@ function showOnly(id) {
 }
 
 function setLoading(on) {
-  document.getElementById('btn-run').disabled  = on;
-  document.getElementById('btn-cmd').disabled  = on;
+  document.getElementById('btn-run').disabled = on;
   if (on) {
+    document.getElementById('btn-run').textContent = 'Analyzing...';
     document.getElementById('kpis').classList.add('hidden');
     document.getElementById('btn-dl').classList.add('hidden');
     showOnly('msg-loading');
+  } else {
+    document.getElementById('btn-run').textContent = 'Analyze';
   }
 }
 
@@ -230,8 +232,8 @@ function resetFilters() {
   document.getElementById('from_date').value = TODAY;
   document.getElementById('to_date').value   = TODAY;
   document.getElementById('status').value    = 'irrelevant';
-  document.getElementById('cmd-input').value = '';
-  document.getElementById('parsed-tag').style.display = 'none';
+  const tag = document.getElementById('parsed-tag');
+  if (tag) tag.style.display = 'none';
   document.getElementById('kpis').classList.add('hidden');
   document.getElementById('btn-dl').classList.add('hidden');
   lastResults = []; lastPayload = {};
