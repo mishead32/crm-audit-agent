@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CRM Analysis AI Agent</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Segoe UI', sans-serif; background: #0f1923; color: #e0e6ed; min-height: 100vh; }
+
+header {
+  background: linear-gradient(135deg, #1F3864, #2E75B6);
+  padding: 16px 32px; display: flex; align-items: center; gap: 14px;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.4);
+}
+header h1 { font-size: 20px; font-weight: 700; }
+header span { font-size: 12px; opacity: 0.7; margin-left: auto; background: rgba(255,255,255,0.1); padding: 4px 12px; border-radius: 20px; }
+
+.container { max-width: 1200px; margin: 0 auto; padding: 24px 20px; }
+
+.panel {
+  background: #1a2636; border: 1px solid #2a3a52; border-radius: 12px;
+  padding: 20px; margin-bottom: 20px;
+}
+.panel-title { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #7eb3e8; margin-bottom: 16px; font-weight: 600; }
+
+/* Command box */
+.cmd-row { display: flex; gap: 10px; }
+.cmd-input {
+  flex: 1; padding: 12px 16px; border-radius: 8px;
+  border: 1px solid #2a3a52; background: #0f1923; color: #e0e6ed;
+  font-size: 14px; outline: none; transition: border-color 0.2s;
+}
+.cmd-input:focus { border-color: #2E75B6; }
+.cmd-input::placeholder { color: #4a6080; }
+
+/* Controls */
+.controls { display: grid; grid-template-columns: 1.5fr 1fr 1fr 1fr; gap: 12px; margin-bottom: 14px; }
+label { font-size: 11px; color: #8a9bb0; display: block; margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.5px; }
+select, input[type=date] {
+  width: 100%; padding: 10px 12px; border-radius: 7px;
+  border: 1px solid #2a3a52; background: #0f1923; color: #e0e6ed;
+  font-size: 13px; outline: none; transition: border-color 0.2s;
+}
+select:focus, input:focus { border-color: #2E75B6; }
+
+.btn-row { display: flex; gap: 10px; }
+.btn {
+  padding: 10px 22px; border: none; border-radius: 7px;
+  font-size: 13px; font-weight: 600; cursor: pointer; transition: opacity 0.2s; height: 40px;
+}
+.btn:hover { opacity: 0.85; }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.btn-primary { background: linear-gradient(135deg, #2E75B6, #1a5fa8); color: white; }
+.btn-reset   { background: #2a3a52; color: #8a9bb0; }
+.btn-send    { background: linear-gradient(135deg, #375623, #2a4019); color: #6dbf87; }
+.btn-dl      { background: transparent; color: #6dbf87; border: 1px solid #375623; }
+.btn-dl:disabled { opacity: 0.4; }
+
+/* Parsed command indicator */
+.parsed-tag {
+  font-size: 11px; color: #7eb3e8; background: rgba(46,117,182,0.15);
+  border: 1px solid rgba(46,117,182,0.3); border-radius: 6px;
+  padding: 6px 12px; margin-bottom: 14px; display: none;
+}
+
+/* KPI Cards */
+.kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
+.kpi { background: #1a2636; border: 1px solid #2a3a52; border-radius: 10px; padding: 16px; text-align: center; }
+.kpi .val  { font-size: 30px; font-weight: 700; margin-bottom: 4px; }
+.kpi .lbl  { font-size: 11px; color: #8a9bb0; text-transform: uppercase; letter-spacing: 0.5px; }
+.kpi.blue .val  { color: #7eb3e8; }
+.kpi.green .val { color: #6dbf87; }
+.kpi.red .val   { color: #e87070; }
+.kpi.orange .val{ color: #f0a060; }
+
+/* Results */
+.results-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+.results-header h2 { font-size: 14px; font-weight: 600; }
+
+/* Table */
+.table-wrap { overflow-x: auto; border-radius: 8px; border: 1px solid #2a3a52; max-height: 600px; overflow-y: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 12px; }
+thead th {
+  background: #1F3864; padding: 11px 13px; text-align: left;
+  font-size: 10px; text-transform: uppercase; letter-spacing: 0.8px;
+  color: #a0bcd8; white-space: nowrap; position: sticky; top: 0; z-index: 1;
+}
+tbody tr { border-bottom: 1px solid #1e2d3d; }
+tbody tr:last-child { border-bottom: none; }
+tbody tr:hover { background: #1e2d3d; }
+tbody td { padding: 9px 13px; vertical-align: top; line-height: 1.5; }
+
+tr.flagged { background: rgba(200,0,0,0.07); }
+tr.flagged td { color: #f08080; }
+tr.flagged:hover { background: rgba(200,0,0,0.13); }
+
+.badge { display: inline-block; padding: 3px 9px; border-radius: 20px; font-size: 10px; font-weight: 700; white-space: nowrap; }
+.badge.mis  { background: rgba(200,0,0,0.2); color: #f08080; border: 1px solid rgba(200,0,0,0.35); }
+.badge.ok   { background: rgba(60,120,60,0.2); color: #6dbf87; border: 1px solid rgba(60,120,60,0.35); }
+.badge.pct  { background: rgba(46,117,182,0.2); color: #7eb3e8; border: 1px solid rgba(46,117,182,0.3); }
+
+/* Status messages */
+.msg { text-align: center; padding: 50px; color: #5a7a9a; font-size: 14px; }
+.spinner { display: inline-block; width: 20px; height: 20px; border: 3px solid #2a3a52;
+  border-top-color: #2E75B6; border-radius: 50%; animation: spin 0.8s linear infinite; margin-right: 8px; vertical-align: middle; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.hidden { display: none !important; }
+.divider { border: none; border-top: 1px solid #2a3a52; margin: 16px 0; }
+
+@media (max-width: 768px) {
+  .controls { grid-template-columns: 1fr 1fr; }
+  .kpis { grid-template-columns: 1fr 1fr; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>CRM Analysis AI Agent</h1>
+  </div>
+  <span>Groq AI + Google Sheets</span>
+</header>
+
+<div class="container">
+
+  <!-- Command Box -->
+  <div class="panel">
+    <div class="panel-title">Open Command</div>
+    <div class="cmd-row">
+      <input class="cmd-input" id="cmd-input" type="text"
+        placeholder="e.g. Analyze BIPS irrelevant leads for 6 April 2026  |  Show Spa Kora relevant leads from 1 to 7 April"
+        onkeydown="if(event.key==='Enter') sendCommand()">
+      <button class="btn btn-send" onclick="sendCommand()" id="btn-cmd">Send</button>
+    </div>
+  </div>
+
+  <!-- Filter Panel -->
+  <div class="panel">
+    <div class="panel-title">Filter & Analyze</div>
+    <div class="parsed-tag" id="parsed-tag"></div>
+    <div class="controls">
+      <div>
+        <label>Company</label>
+        <select id="company">
+          <option value="bips">BIPS School</option>
+          <option value="bodyzone">Bodyzone Gym</option>
+          <option value="spakora">Spa Kora</option>
+        </select>
+      </div>
+      <div>
+        <label>From Date</label>
+        <input type="date" id="from_date">
+      </div>
+      <div>
+        <label>To Date</label>
+        <input type="date" id="to_date">
+      </div>
+      <div>
+        <label>Inquiry Status</label>
+        <select id="status">
+          <option value="irrelevant">Irrelevant</option>
+          <option value="relevant">Relevant</option>
+        </select>
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-primary" id="btn-run" onclick="runAnalysis()">Analyze</button>
+      <button class="btn btn-reset" onclick="resetFilters()">Reset Filters</button>
+    </div>
+  </div>
+
+  <!-- KPI Cards -->
+  <div class="kpis hidden" id="kpis">
+    <div class="kpi blue">  <div class="val" id="kpi-total">0</div>   <div class="lbl">Total Leads</div>    </div>
+    <div class="kpi green"> <div class="val" id="kpi-correct">0</div> <div class="lbl">Correctly Marked</div></div>
+    <div class="kpi red">   <div class="val" id="kpi-mis">0</div>     <div class="lbl">Mis-Categorized</div></div>
+    <div class="kpi orange"><div class="val" id="kpi-acc">0%</div>    <div class="lbl">Accuracy Rate</div>  </div>
+  </div>
+
+  <!-- Results -->
+  <div class="panel">
+    <div class="results-header">
+      <h2 id="results-title">Results</h2>
+      <button class="btn btn-dl hidden" id="btn-dl" onclick="downloadReport()">Download Excel</button>
+    </div>
+
+    <div class="msg" id="msg-idle">Select a company and date range above, then click <strong>Analyze</strong> — or type a command above.</div>
+    <div class="msg hidden" id="msg-loading"><span class="spinner"></span>Fetching sheet data and analyzing with Groq AI...</div>
+    <div class="msg hidden" id="msg-empty" style="color:#f0a060;">No leads found for the selected filters.</div>
+    <div class="msg hidden" id="msg-error" style="color:#e87070;"></div>
+
+    <div class="table-wrap hidden" id="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Date & Time</th>
+            <th>Salesperson</th>
+            <th>Status</th>
+            <th>Remarks</th>
+            <th>Verdict</th>
+            <th>Potential</th>
+            <th>Reason / Action</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<script>
+let lastResults = [];
+let lastPayload = {};
+
+const TODAY = new Date().toISOString().split('T')[0];
+
+function showOnly(id) {
+  ['msg-idle','msg-loading','msg-empty','msg-error','table-wrap'].forEach(i =>
+    document.getElementById(i).classList.add('hidden')
+  );
+  if (id) document.getElementById(id).classList.remove('hidden');
+}
+
+function setLoading(on) {
+  document.getElementById('btn-run').disabled  = on;
+  document.getElementById('btn-cmd').disabled  = on;
+  if (on) {
+    document.getElementById('kpis').classList.add('hidden');
+    document.getElementById('btn-dl').classList.add('hidden');
+    showOnly('msg-loading');
+  }
+}
+
+function resetFilters() {
+  document.getElementById('company').value   = 'bips';
+  document.getElementById('from_date').value = TODAY;
+  document.getElementById('to_date').value   = TODAY;
+  document.getElementById('status').value    = 'irrelevant';
+  document.getElementById('cmd-input').value = '';
+  document.getElementById('parsed-tag').style.display = 'none';
+  document.getElementById('kpis').classList.add('hidden');
+  document.getElementById('btn-dl').classList.add('hidden');
+  lastResults = []; lastPayload = {};
+  showOnly('msg-idle');
+  document.getElementById('results-title').textContent = 'Results';
+}
+
+function renderResults(data) {
+  // KPIs
+  document.getElementById('kpi-total').textContent   = data.total || 0;
+  document.getElementById('kpi-correct').textContent = (data.total - data.flagged) || 0;
+  document.getElementById('kpi-mis').textContent     = data.flagged || 0;
+  document.getElementById('kpi-acc').textContent     = (data.accuracy || 0) + '%';
+  document.getElementById('kpis').classList.remove('hidden');
+
+  const dateLabel = data.from_date === data.to_date ? data.from_date : `${data.from_date} → ${data.to_date}`;
+  document.getElementById('results-title').textContent =
+    `${data.company}  ·  ${dateLabel}  ·  ${(data.status||'').toUpperCase()}  ·  ${data.total} leads`;
+
+  if (!data.results || !data.results.length) { showOnly('msg-empty'); return; }
+
+  lastResults = data.results;
+  lastPayload = {
+    company: document.getElementById('company').value,
+    from_date: data.from_date, to_date: data.to_date, results: lastResults
+  };
+
+  const tbody = document.getElementById('tbody');
+  tbody.innerHTML = '';
+  data.results.forEach((r, i) => {
+    const tr = document.createElement('tr');
+    if (r.flagged) tr.classList.add('flagged');
+
+    const verdict = r.flagged
+      ? `<span class="badge mis">MIS-CATEGORIZED</span>`
+      : (r.verdict.includes('Relevant')
+          ? `<span class="badge ok">Correctly Relevant</span>`
+          : `<span class="badge ok">Correctly Irrelevant</span>`);
+
+    const pct    = `<span class="badge pct">${r.potential}</span>`;
+    const note   = r.flagged
+      ? `<strong>ACTION:</strong> ${r.action || '—'}<br><span style="opacity:0.75">${r.reason || ''}</span>`
+      : (r.reason || '—');
+    const remarks = (r.remarks || '').substring(0, 160) + ((r.remarks||'').length > 160 ? '…' : '');
+
+    tr.innerHTML = `
+      <td>${i+1}</td>
+      <td style="white-space:nowrap;font-size:11px">${r.date}</td>
+      <td>${r.person || '—'}</td>
+      <td><span class="badge pct">${r.status}</span></td>
+      <td style="max-width:300px">${remarks}</td>
+      <td>${verdict}</td>
+      <td>${pct}</td>
+      <td style="max-width:260px;font-size:11px">${note}</td>`;
+    tbody.appendChild(tr);
+  });
+
+  showOnly('table-wrap');
+  document.getElementById('btn-dl').classList.remove('hidden');
+}
+
+async function runAnalysis() {
+  const company   = document.getElementById('company').value;
+  const from_date = document.getElementById('from_date').value;
+  const to_date   = document.getElementById('to_date').value;
+  const status    = document.getElementById('status').value;
+
+  if (!from_date || !to_date) { alert('Please select a date range.'); return; }
+
+  setLoading(true);
+  try {
+    const res  = await fetch('/analyze', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({company, from_date, to_date, status})
+    });
+    const data = await res.json();
+    if (data.error) {
+      document.getElementById('msg-error').textContent = 'Error: ' + data.error;
+      showOnly('msg-error'); return;
+    }
+    renderResults(data);
+  } catch(e) {
+    document.getElementById('msg-error').textContent = 'Connection error: ' + e.message;
+    showOnly('msg-error');
+  } finally { setLoading(false); }
+}
+
+async function sendCommand() {
+  const text = document.getElementById('cmd-input').value.trim();
+  if (!text) { alert('Please type a command.'); return; }
+
+  setLoading(true);
+  try {
+    const res  = await fetch('/command', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({text})
+    });
+    const data = await res.json();
+    if (data.error) {
+      document.getElementById('msg-error').textContent = 'Error: ' + data.error;
+      showOnly('msg-error'); return;
+    }
+
+    // Update dropdowns to match parsed command
+    if (data.parsed) {
+      const p = data.parsed;
+      document.getElementById('company').value   = p.company   || 'bips';
+      document.getElementById('from_date').value = p.from_date || '';
+      document.getElementById('to_date').value   = p.to_date   || '';
+      document.getElementById('status').value    = p.status    || 'irrelevant';
+
+      const tag = document.getElementById('parsed-tag');
+      tag.style.display = 'block';
+      tag.textContent = `Understood: ${data.company} · ${p.from_date} to ${p.to_date} · ${p.status}`;
+    }
+
+    renderResults(data);
+  } catch(e) {
+    document.getElementById('msg-error').textContent = 'Connection error: ' + e.message;
+    showOnly('msg-error');
+  } finally { setLoading(false); }
+}
+
+async function downloadReport() {
+  if (!lastResults.length) return;
+  document.getElementById('btn-dl').disabled = true;
+  try {
+    const res  = await fetch('/download', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(lastPayload)
+    });
+    const blob = await res.blob();
+    const a    = document.createElement('a');
+    a.href     = URL.createObjectURL(blob);
+    a.download = 'Lead_Audit_Report.xlsx';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  } catch(e) { alert('Download failed: ' + e.message); }
+  finally { document.getElementById('btn-dl').disabled = false; }
+}
+// Set initial dates to today on page load
+document.addEventListener("DOMContentLoaded", () => {
+  document.getElementById('from_date').value = TODAY;
+  document.getElementById('to_date').value   = TODAY;
+});
+</script>
+</body>
+</html>

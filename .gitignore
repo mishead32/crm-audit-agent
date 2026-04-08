@@ -1,0 +1,6 @@
+credentials.json.json
+*.json.json
+__pycache__/
+*.pyc
+*.xlsx
+.env
