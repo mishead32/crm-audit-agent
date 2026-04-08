@@ -144,16 +144,45 @@ def load_sheet(company_key, from_date, to_date, status_filter):
     return f[["_date_str", "_remarks", "_person", "_source", "_status"]]
 
 
+def analyze_batch(co, task, batch_df, offset=0):
+    """Analyze a single batch of leads with Groq."""
+    leads_text = ""
+    for i, row in batch_df.iterrows():
+        leads_text += f"LEAD {i+1+offset}:\nCurrent Status: {row['_status']}\nRemarks: {row['_remarks'] or 'No remarks provided'}\n\n"
+
+    prompt = f"""You are a senior sales audit expert for: {co['description']}
+
+{task}
+
+{leads_text}
+
+Respond for EVERY lead in EXACTLY this format — do not skip any:
+
+LEAD {offset+1}:
+POTENTIAL: [0% / 10% / 25% / 35% / 50%]
+VERDICT: [Correctly Irrelevant / Correctly Relevant / MIS-CATEGORIZED]
+REASON: [1 sentence explanation]
+ACTION: [1 sentence recommended next step, or None]
+
+Rules for MIS-CATEGORIZED:
+- Irrelevant leads: genuine interest, asked about fees/facilities/timings, real need = MIS-CATEGORIZED
+- Relevant leads: wrong number, no interest, not target audience = MIS-CATEGORIZED
+- Wrong location/distance alone for irrelevant = Correctly Irrelevant
+- Accidental click, clearly no interest = Correctly Irrelevant"""
+
+    resp = groq_client.chat.completions.create(
+        model="llama-3.3-70b-versatile",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.2,
+    )
+    return resp.choices[0].message.content
+
+
 def analyze_with_groq(company_key, df, status_filter):
     co = COMPANIES[company_key]
     if df.empty:
         return []
 
-    leads_text = ""
-    for i, row in df.iterrows():
-        leads_text += f"LEAD {i+1}:\nCurrent Status: {row['_status']}\nRemarks: {row['_remarks'] or 'No remarks provided'}\n\n"
-
-    # Different prompt logic for relevant vs irrelevant
     if status_filter == "irrelevant":
         task = """The telecaller marked these leads as IRRELEVANT.
 Your job: Check if the telecaller was WRONG — i.e., does the lead actually have >=25% chance of becoming a paying customer?
@@ -170,37 +199,19 @@ Your job: Check if the telecaller was WRONG — i.e., is the lead actually NOT a
 - If RELEVANT lead has no genuine interest → MIS-CATEGORIZED
 - Otherwise → Correctly Categorized"""
 
-    prompt = f"""You are a senior sales audit expert for: {co['description']}
-
-{task}
-
-{leads_text}
-
-Respond for EVERY lead in EXACTLY this format — do not skip any:
-
-LEAD 1:
-POTENTIAL: [0% / 10% / 25% / 35% / 50%]
-VERDICT: [Correctly Irrelevant / Correctly Relevant / MIS-CATEGORIZED]
-REASON: [1 sentence explanation]
-ACTION: [1 sentence recommended next step, or None]
-
-Rules for MIS-CATEGORIZED:
-- Irrelevant leads: genuine interest, asked about fees/facilities/timings, real need = MIS-CATEGORIZED
-- Relevant leads: wrong number, no interest, not target audience = MIS-CATEGORIZED
-- Wrong location/distance alone for irrelevant = Correctly Irrelevant
-- Accidental click, clearly no interest = Correctly Irrelevant"""
-
-    resp   = groq_client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0.2,
-    )
-    result = resp.choices[0].message.content
-    blocks = [b.strip() for b in re.split(r'LEAD \d+:', result) if b.strip()]
+    # Process in batches of 12 to avoid timeouts
+    BATCH_SIZE = 12
+    all_blocks = []
+    df_reset = df.reset_index(drop=True)
+    for start in range(0, len(df_reset), BATCH_SIZE):
+        batch = df_reset.iloc[start:start+BATCH_SIZE]
+        result = analyze_batch(co, task, batch, offset=start)
+        blocks = [b.strip() for b in re.split(r'LEAD \d+:', result) if b.strip()]
+        all_blocks.extend(blocks)
 
     results = []
-    for i, row in df.iterrows():
-        block  = blocks[i] if i < len(blocks) else ""
+    for i, row in df_reset.iterrows():
+        block  = all_blocks[i] if i < len(all_blocks) else ""
         parsed = {"potential": "—", "verdict": "—", "reason": "—", "action": "None"}
         for line in block.split("\n"):
             l = line.strip()
